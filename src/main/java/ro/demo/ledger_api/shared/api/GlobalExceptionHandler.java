@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import tools.jackson.databind.DatabindException;
 
@@ -71,6 +72,14 @@ public class GlobalExceptionHandler {
 		List<ApiViolation> violations = List.of(new ApiViolation(exception.getHeaderName(),
 				"REQUIRED", "Required request header is missing"));
 		return problem(HttpStatus.BAD_REQUEST, "Required request header is missing",
+				ApiErrorCode.VALIDATION_FAILED, violations);
+	}
+
+	@ExceptionHandler(MissingServletRequestParameterException.class)
+	ProblemDetail handleMissingRequestParameter(MissingServletRequestParameterException exception) {
+		List<ApiViolation> violations = List.of(new ApiViolation(exception.getParameterName(),
+				"REQUIRED", "Required request parameter is missing"));
+		return problem(HttpStatus.BAD_REQUEST, "Required request parameter is missing",
 				ApiErrorCode.VALIDATION_FAILED, violations);
 	}
 

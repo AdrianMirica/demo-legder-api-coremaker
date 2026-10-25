@@ -1,5 +1,7 @@
 # PRD-006 - Transaction and historical ledger queries
 
+**Status:** DONE
+
 ## Objective
 
 Complete the read side: retrieve transactions, page an account's entries newest first with the
@@ -58,6 +60,15 @@ HistoricalBalanceResponse
 Use explicit JPQL/native projections. Do not load all entries and page in memory. Reuse the indexes
 created in PRD-004; this PRD adds no migration.
 
+`TIMESTAMP(6)` values are persisted and queried as UTC. Historical SQL binds `at` as a formatted UTC
+`DATETIME(6)` literal and entry projections decode database timestamps as UTC, avoiding JVM or JDBC
+session timezone conversion. Hikari initializes every MySQL session with `SET time_zone = '+00:00'`;
+Hibernate also binds timestamps in UTC.
+
+Projected amounts and balances are normalized to the account's ISO currency scale before response
+serialization, including scale-zero JPY. Page metadata uses `long` values and integer arithmetic
+for `totalPages`, matching MySQL `COUNT(*)` bigint range.
+
 ## Tests
 
 1. Transaction read returns entries in request sequence.
@@ -72,11 +83,23 @@ created in PRD-004; this PRD adds no migration.
 
 ## Acceptance criteria
 
-- [ ] Queries are paged and database-backed.
-- [ ] Ordering is deterministic even for equal timestamps.
-- [ ] Historical balances use immutable entry snapshots.
-- [ ] All three read endpoints match OpenAPI.
-- [ ] `./mvnw test` passes.
+- [x] Queries are paged and database-backed.
+- [x] Ordering is deterministic even for equal timestamps.
+- [x] Historical balances use immutable entry snapshots.
+- [x] All three read endpoints match OpenAPI.
+- [x] `./mvnw test` passes.
+
+## Implementation entry point and verification
+
+`AccountLedgerQueryService` checks account existence before issuing explicit projected SQL queries.
+It counts and pages account entries in MySQL with the required deterministic ordering:
+`recorded_at DESC`, `ledger_sequence DESC`, then `sequence_no DESC`. It returns the immutable
+`balance_after` snapshot stored on each entry. Historical balance selects one immutable entry at or
+before `at`, in the same ordering, or exact zero at the account currency scale if no entry exists.
+
+`AccountLedgerQueryApiTests` verifies pagination metadata and order, stored entry snapshots,
+historical balance before/between/after transactions, JPY scale, unknown accounts, invalid paging,
+missing or malformed `at`, and future timestamps. All query tests run against MySQL 8.4.
 
 ## Stop condition
 

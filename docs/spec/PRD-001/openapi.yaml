@@ -85,6 +85,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AccountEntryPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
   /api/v1/accounts/{accountId}/balance:
@@ -108,6 +110,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HistoricalBalance'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
   /api/v1/transactions:
@@ -364,19 +368,42 @@ components:
         balanceAfter:
           type: number
     AccountEntry:
-      allOf:
-        - $ref: '#/components/schemas/Entry'
-        - type: object
-          required: [transactionId, transactionDescription, recordedAt]
-          properties:
-            transactionId:
-              type: string
-              format: uuid
-            transactionDescription:
-              type: string
-            recordedAt:
-              type: string
-              format: date-time
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - sequence
+        - accountId
+        - direction
+        - amount
+        - balanceAfter
+        - transactionId
+        - transactionDescription
+        - recordedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        sequence:
+          type: integer
+          minimum: 0
+        accountId:
+          type: string
+          format: uuid
+        direction:
+          $ref: '#/components/schemas/Direction'
+        amount:
+          type: number
+        balanceAfter:
+          type: number
+        transactionId:
+          type: string
+          format: uuid
+        transactionDescription:
+          type: string
+        recordedAt:
+          type: string
+          format: date-time
     AccountEntryPage:
       type: object
       required: [content, page, size, totalElements, totalPages]
@@ -394,6 +421,7 @@ components:
           format: int64
         totalPages:
           type: integer
+          format: int64
     HistoricalBalance:
       type: object
       required: [accountId, currency, balance, asOf]

@@ -1,8 +1,10 @@
 package ro.demo.ledger_api.account;
 
 import java.net.URI;
+import java.time.Instant;
 import java.util.UUID;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -12,6 +14,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import ro.demo.ledger_api.idempotency.IdempotencyService;
@@ -25,11 +28,14 @@ public class AccountController {
 
 	private final AccountService accounts;
 	private final IdempotencyService idempotency;
+	private final AccountLedgerQueryService ledgerQueries;
 	private final ObjectMapper mapper;
 
-	public AccountController(AccountService accounts, IdempotencyService idempotency, ObjectMapper mapper) {
+	public AccountController(AccountService accounts, IdempotencyService idempotency,
+			AccountLedgerQueryService ledgerQueries, ObjectMapper mapper) {
 		this.accounts = accounts;
 		this.idempotency = idempotency;
+		this.ledgerQueries = ledgerQueries;
 		this.mapper = mapper;
 	}
 
@@ -55,5 +61,20 @@ public class AccountController {
 	@GetMapping("/{accountId}")
 	public ResponseEntity<AccountResponse> get(@PathVariable UUID accountId) {
 		return ResponseEntity.ok(accounts.get(accountId));
+	}
+
+	@GetMapping("/{accountId}/entries")
+	public ResponseEntity<AccountEntryPageResponse> entries(
+			@PathVariable UUID accountId,
+			@RequestParam(defaultValue = "0") @Min(0) int page,
+			@RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
+		return ResponseEntity.ok(ledgerQueries.entries(accountId, page, size));
+	}
+
+	@GetMapping("/{accountId}/balance")
+	public ResponseEntity<HistoricalBalanceResponse> historicalBalance(
+			@PathVariable UUID accountId,
+			@RequestParam Instant at) {
+		return ResponseEntity.ok(ledgerQueries.historicalBalance(accountId, at));
 	}
 }

@@ -53,6 +53,8 @@ Do not exceed a PRD's budget by polishing. If its acceptance tests pass, move on
   MySQL concurrency/integrity tests).
 - PRD-005: **DONE** (single immutable reversal, idempotent retry, overdraft enforcement, and
   concurrent-reversal proof on MySQL).
+- PRD-006: **DONE** (database-paged account entries and UTC historical-balance snapshots).
+- PRD-006: **IN PROGRESS**.
 
 ## Parallelism
 
