@@ -56,6 +56,8 @@ Do not exceed a PRD's budget by polishing. If its acceptance tests pass, move on
 - PRD-006: **DONE** (database-paged account entries and UTC historical-balance snapshots).
 - PRD-007: **DONE** (RabbitMQ payment ingestion, payment-ID deduplication, bounded retries, DLQ,
   sample publisher, and real-infrastructure integration tests).
+- PRD-008: **DONE** (transactional outbox, stable at-least-once events, publisher confirms,
+  multi-instance locking, and RabbitMQ outage recovery).
 
 ## Parallelism
 

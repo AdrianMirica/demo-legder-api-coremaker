@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import ro.demo.ledger_api.idempotency.IdempotencyService;
 import ro.demo.ledger_api.idempotency.StoredHttpResponse;
+import ro.demo.ledger_api.messaging.outbox.OutboxContext;
 import tools.jackson.databind.ObjectMapper;
 
 @RestController
@@ -29,24 +30,29 @@ public class TransactionController {
 	private final ReversalService reversals;
 	private final IdempotencyService idempotency;
 	private final ObjectMapper mapper;
+	private final OutboxContext outboxContext;
 
 	public TransactionController(LedgerPostingService ledger, ReversalService reversals,
-			IdempotencyService idempotency, ObjectMapper mapper) {
+			IdempotencyService idempotency, ObjectMapper mapper, OutboxContext outboxContext) {
 		this.ledger = ledger;
 		this.reversals = reversals;
 		this.idempotency = idempotency;
 		this.mapper = mapper;
+		this.outboxContext = outboxContext;
 	}
 
 	@PostMapping
 	public ResponseEntity<String> record(
 			@RequestHeader("Idempotency-Key") String idempotencyKey,
+			@RequestHeader(value = "X-Correlation-Id", required = false) String correlationId,
 			@Valid @RequestBody RecordTransactionRequest request) {
-		StoredHttpResponse response = idempotency.execute(
-				RECORD_TRANSACTION_OPERATION,
-				idempotencyKey,
-				request,
-				() -> idempotency.jsonResponse(HttpStatus.CREATED, ledger.recordApi(request)));
+		String correlation = correlationId == null ? UUID.randomUUID().toString() : correlationId;
+		StoredHttpResponse response = outboxContext.with(correlation, idempotencyKey,
+				() -> idempotency.execute(
+						RECORD_TRANSACTION_OPERATION,
+						idempotencyKey,
+						request,
+						() -> idempotency.jsonResponse(HttpStatus.CREATED, ledger.recordApi(request))));
 		ResponseEntity.BodyBuilder result = ResponseEntity.status(response.status())
 				.contentType(MediaType.valueOf(response.contentType()));
 		if (response.status() == HttpStatus.CREATED.value()) {
@@ -69,15 +75,18 @@ public class TransactionController {
 	public ResponseEntity<String> reverse(
 			@PathVariable UUID transactionId,
 			@RequestHeader("Idempotency-Key") String idempotencyKey,
+			@RequestHeader(value = "X-Correlation-Id", required = false) String correlationId,
 			@Valid @RequestBody(required = false) ReverseTransactionRequest request) {
 		ReverseTransactionRequest normalizedRequest =
 				request == null ? DEFAULT_REVERSAL_REQUEST : request;
-		StoredHttpResponse response = idempotency.execute(
-				"REVERSE_TRANSACTION:" + transactionId,
-				idempotencyKey,
-				normalizedRequest,
-				() -> idempotency.jsonResponse(HttpStatus.CREATED,
-						reversals.reverse(transactionId, normalizedRequest)));
+		String correlation = correlationId == null ? UUID.randomUUID().toString() : correlationId;
+		StoredHttpResponse response = outboxContext.with(correlation, idempotencyKey,
+				() -> idempotency.execute(
+						"REVERSE_TRANSACTION:" + transactionId,
+						idempotencyKey,
+						normalizedRequest,
+						() -> idempotency.jsonResponse(HttpStatus.CREATED,
+								reversals.reverse(transactionId, normalizedRequest))));
 		ResponseEntity.BodyBuilder result = ResponseEntity.status(response.status())
 				.contentType(MediaType.valueOf(response.contentType()));
 		if (response.status() == HttpStatus.CREATED.value()) {

@@ -1,5 +1,7 @@
 # PRD-008 - Reliably announce recorded transactions
 
+**Status:** DONE
+
 ## Objective
 
 Publish every committed API, payment, and reversal transaction to other services without a
@@ -100,6 +102,10 @@ Do not publish directly from the request or listener transaction.
 
 Do not hold a lock while sleeping between polls.
 
+The publisher stops the current batch after the first broker failure so a 100-row batch cannot hold
+database locks through 100 consecutive confirm timeouts. The failed row is updated and committed;
+later rows remain untouched for the next poll.
+
 ## Tests
 
 Use MySQL and RabbitMQ Testcontainers:
@@ -114,11 +120,29 @@ Use MySQL and RabbitMQ Testcontainers:
 
 ## Acceptance criteria
 
-- [ ] There is no direct database-plus-RabbitMQ dual write.
-- [ ] Every ledger write source creates an outbox event.
-- [ ] Publisher confirms gate `published_at`.
-- [ ] Failure and crash semantics are documented honestly and tested.
-- [ ] `./mvnw test` passes.
+- [x] There is no direct database-plus-RabbitMQ dual write.
+- [x] Every ledger write source creates an outbox event.
+- [x] Publisher confirms gate `published_at`.
+- [x] Failure and crash semantics are documented honestly and tested.
+- [x] `./mvnw test` passes.
+
+## Implementation entry point and verification
+
+`LedgerPostingService` flushes the immutable transaction and entries, creates the exact AsyncAPI
+payload, and inserts one outbox row before the surrounding API or payment transaction commits.
+`OutboxContext` carries correlation and causation only for the synchronous call scope: REST uses
+the optional `X-Correlation-Id` (or a generated UUID) plus the idempotency key; payment uses the
+incoming event ID for both. Direct internal calls fall back to the transaction ID as correlation.
+
+`OutboxPublisher` polls with `FOR UPDATE SKIP LOCKED`, publishes persistent JSON with the stable
+outbox UUID as message/event ID, requires a positive correlated publisher confirm and no returned
+message, and only then marks the row published. Returned, negatively acknowledged, timed-out, or
+connection-failed publications increment attempts and retain a bounded diagnostic.
+
+`OutboxIntegrationTests` verifies API, payment, and reversal payloads; correlation/causation;
+rollback without outbox; mandatory-return recovery; a real paused RabbitMQ outage and recovery;
+stable-ID duplicates after simulated crash-before-mark; and two concurrent publisher instances.
+The full test suite runs against real MySQL and RabbitMQ.
 
 ## Stop condition
 

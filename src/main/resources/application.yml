@@ -26,6 +26,13 @@ spring:
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USERNAME:ledger}
     password: ${RABBITMQ_PASSWORD:ledger}
+    connection-timeout: 5s
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+      connection-timeout: 5s
+      reply-timeout: 5s
   lifecycle:
     timeout-per-shutdown-phase: 20s
 
@@ -41,3 +48,9 @@ management:
     health:
       probes:
         enabled: true
+
+ledger:
+  outbox:
+    poll-delay: 250ms
+    initial-delay: 250ms
+    confirm-timeout: 5s

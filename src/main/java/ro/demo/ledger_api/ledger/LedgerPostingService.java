@@ -13,6 +13,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ro.demo.ledger_api.account.AccountEntity;
+import ro.demo.ledger_api.messaging.outbox.OutboxService;
 import ro.demo.ledger_api.shared.api.ApiErrorCode;
 import ro.demo.ledger_api.shared.api.ApiException;
 import ro.demo.ledger_api.shared.api.ApiViolation;
@@ -26,12 +27,15 @@ public class LedgerPostingService {
 	private final AccountLockRepository accountLocks;
 	private final LedgerTransactionRepository transactions;
 	private final LedgerEntryRepository entries;
+	private final OutboxService outbox;
 
 	public LedgerPostingService(AccountLockRepository accountLocks,
-			LedgerTransactionRepository transactions, LedgerEntryRepository entries) {
+			LedgerTransactionRepository transactions, LedgerEntryRepository entries,
+			OutboxService outbox) {
 		this.accountLocks = accountLocks;
 		this.transactions = transactions;
 		this.entries = entries;
+		this.outbox = outbox;
 	}
 
 	public TransactionResponse recordApi(RecordTransactionRequest request) {
@@ -94,7 +98,11 @@ public class LedgerPostingService {
 		}
 		entries.saveAll(persistedEntries);
 		deltas.forEach((accountId, delta) -> accountsById.get(accountId).applyDelta(delta));
-		return TransactionMapper.toResponse(transaction, persistedEntries);
+		TransactionResponse response = TransactionMapper.toResponse(transaction, persistedEntries);
+		transactions.flush();
+		entries.flush();
+		outbox.enqueue(response, currency);
+		return response;
 	}
 
 	@Transactional(readOnly = true)
