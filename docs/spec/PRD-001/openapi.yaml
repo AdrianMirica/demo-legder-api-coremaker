@@ -1,0 +1,434 @@
+openapi: 3.1.0
+info:
+  title: Ledger API
+  version: 1.0.0
+  description: Double-entry ledger API. Money is represented as exact JSON decimal numbers.
+servers:
+  - url: http://localhost:8080
+tags:
+  - name: Accounts
+  - name: Transactions
+paths:
+  /api/v1/accounts:
+    post:
+      tags: [Accounts]
+      operationId: openAccount
+      summary: Open an account with a zero balance
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenAccountRequest'
+      responses:
+        '201':
+          description: Account opened
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/v1/accounts/{accountId}:
+    get:
+      tags: [Accounts]
+      operationId: getAccount
+      summary: Read an account and its current balance
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/accounts/{accountId}/entries:
+    get:
+      tags: [Accounts]
+      operationId: listAccountEntries
+      summary: List account entries newest first
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Paged entries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountEntryPage'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/accounts/{accountId}/balance:
+    get:
+      tags: [Accounts]
+      operationId: getHistoricalBalance
+      summary: Read an account balance at a past instant
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - name: at
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Historical balance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HistoricalBalance'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/transactions:
+    post:
+      tags: [Transactions]
+      operationId: recordTransaction
+      summary: Atomically record a balanced transaction
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordTransactionRequest'
+      responses:
+        '201':
+          description: Transaction recorded
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/v1/transactions/{transactionId}:
+    get:
+      tags: [Transactions]
+      operationId: getTransaction
+      summary: Read a recorded transaction
+      parameters:
+        - $ref: '#/components/parameters/TransactionId'
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Transaction
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/v1/transactions/{transactionId}/reversal:
+    post:
+      tags: [Transactions]
+      operationId: reverseTransaction
+      summary: Record the one allowed reversal of an original transaction
+      parameters:
+        - $ref: '#/components/parameters/TransactionId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReverseTransactionRequest'
+      responses:
+        '201':
+          description: Reversal recorded
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Client-generated key unique to this logical operation.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+    AccountId:
+      name: accountId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    TransactionId:
+      name: transactionId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    BadRequest:
+      description: Invalid request or domain rule violation
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    NotFound:
+      description: Resource not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Conflict:
+      description: Request conflicts with current ledger state
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    OpenAccountRequest:
+      type: object
+      additionalProperties: false
+      required: [currency]
+      properties:
+        currency:
+          $ref: '#/components/schemas/Currency'
+        overdraftLimit:
+          type: number
+          minimum: 0
+          default: 0
+          examples: [0.00, 500.00]
+    Account:
+      type: object
+      additionalProperties: false
+      required: [id, currency, overdraftLimit, balance, settlementAccount, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        currency:
+          $ref: '#/components/schemas/Currency'
+        overdraftLimit:
+          type: [number, 'null']
+        balance:
+          type: number
+        settlementAccount:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+    RecordTransactionRequest:
+      type: object
+      additionalProperties: false
+      required: [description, entries]
+      properties:
+        description:
+          type: string
+          minLength: 1
+          maxLength: 255
+        entries:
+          type: array
+          minItems: 2
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/EntryRequest'
+    EntryRequest:
+      type: object
+      additionalProperties: false
+      required: [accountId, direction, amount]
+      properties:
+        accountId:
+          type: string
+          format: uuid
+        direction:
+          $ref: '#/components/schemas/Direction'
+        amount:
+          type: number
+          exclusiveMinimum: 0
+    ReverseTransactionRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        description:
+          type: string
+          minLength: 1
+          maxLength: 255
+    Transaction:
+      type: object
+      additionalProperties: false
+      required: [id, description, source, recordedAt, entries]
+      properties:
+        id:
+          type: string
+          format: uuid
+        description:
+          type: string
+        source:
+          type: string
+          enum: [API, PAYMENT, REVERSAL]
+        recordedAt:
+          type: string
+          format: date-time
+        reversedTransactionId:
+          type: [string, 'null']
+          format: uuid
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/Entry'
+    Entry:
+      type: object
+      additionalProperties: false
+      required: [id, sequence, accountId, direction, amount, balanceAfter]
+      properties:
+        id:
+          type: string
+          format: uuid
+        sequence:
+          type: integer
+          minimum: 0
+        accountId:
+          type: string
+          format: uuid
+        direction:
+          $ref: '#/components/schemas/Direction'
+        amount:
+          type: number
+        balanceAfter:
+          type: number
+    AccountEntry:
+      allOf:
+        - $ref: '#/components/schemas/Entry'
+        - type: object
+          required: [transactionId, transactionDescription, recordedAt]
+          properties:
+            transactionId:
+              type: string
+              format: uuid
+            transactionDescription:
+              type: string
+            recordedAt:
+              type: string
+              format: date-time
+    AccountEntryPage:
+      type: object
+      required: [content, page, size, totalElements, totalPages]
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountEntry'
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+    HistoricalBalance:
+      type: object
+      required: [accountId, currency, balance, asOf]
+      properties:
+        accountId:
+          type: string
+          format: uuid
+        currency:
+          $ref: '#/components/schemas/Currency'
+        balance:
+          type: number
+        asOf:
+          type: string
+          format: date-time
+    Problem:
+      type: object
+      required: [type, title, status, detail, errorCode]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri-reference
+        errorCode:
+          type: string
+        violations:
+          type: array
+          items:
+            type: object
+            required: [field, code, message]
+            properties:
+              field:
+                type: string
+              code:
+                type: string
+              message:
+                type: string
+    Currency:
+      type: string
+      enum: [EUR, USD, JPY]
+    Direction:
+      type: string
+      enum: [DEBIT, CREDIT]

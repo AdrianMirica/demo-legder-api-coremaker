@@ -1,0 +1,156 @@
+asyncapi: 3.0.0
+info:
+  title: Ledger Events
+  version: 1.0.0
+  description: RabbitMQ contracts consumed and produced by the Ledger API.
+defaultContentType: application/json
+servers:
+  local:
+    host: localhost:5672
+    protocol: amqp
+    description: Local RabbitMQ
+channels:
+  paymentSettled:
+    address: payment.settled.v1
+    messages:
+      paymentSettled:
+        $ref: '#/components/messages/PaymentSettled'
+  transactionRecorded:
+    address: transaction.recorded.v1
+    messages:
+      transactionRecorded:
+        $ref: '#/components/messages/TransactionRecorded'
+operations:
+  consumePaymentSettled:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentSettled'
+    messages:
+      - $ref: '#/channels/paymentSettled/messages/paymentSettled'
+  publishTransactionRecorded:
+    action: send
+    channel:
+      $ref: '#/channels/transactionRecorded'
+    messages:
+      - $ref: '#/channels/transactionRecorded/messages/transactionRecorded'
+components:
+  messages:
+    PaymentSettled:
+      name: payment-settled
+      title: Payment settled
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/PaymentSettledPayload'
+    TransactionRecorded:
+      name: transaction-recorded
+      title: Ledger transaction recorded
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/TransactionRecordedPayload'
+  schemas:
+    PaymentSettledPayload:
+      type: object
+      additionalProperties: false
+      required:
+        - eventId
+        - paymentId
+        - merchantAccountId
+        - amount
+        - currency
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        paymentId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        merchantAccountId:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          exclusiveMinimum: 0
+        currency:
+          type: string
+          enum: [EUR, USD, JPY]
+    TransactionRecordedPayload:
+      type: object
+      additionalProperties: false
+      required:
+        - eventId
+        - eventType
+        - eventVersion
+        - occurredAt
+        - correlationId
+        - transaction
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        eventType:
+          const: transaction-recorded
+        eventVersion:
+          const: 1
+        occurredAt:
+          type: string
+          format: date-time
+        correlationId:
+          type: string
+        causationId:
+          type: [string, 'null']
+        transaction:
+          $ref: '#/components/schemas/TransactionPayload'
+    TransactionPayload:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - description
+        - source
+        - recordedAt
+        - currency
+        - entries
+      properties:
+        id:
+          type: string
+          format: uuid
+        description:
+          type: string
+        source:
+          type: string
+          enum: [API, PAYMENT, REVERSAL]
+        recordedAt:
+          type: string
+          format: date-time
+        currency:
+          type: string
+          enum: [EUR, USD, JPY]
+        reversedTransactionId:
+          type: [string, 'null']
+          format: uuid
+        entries:
+          type: array
+          minItems: 2
+          items:
+            $ref: '#/components/schemas/EntryPayload'
+    EntryPayload:
+      type: object
+      additionalProperties: false
+      required:
+        - accountId
+        - direction
+        - amount
+        - balanceAfter
+      properties:
+        accountId:
+          type: string
+          format: uuid
+        direction:
+          type: string
+          enum: [DEBIT, CREDIT]
+        amount:
+          type: number
+        balanceAfter:
+          type: number
+
