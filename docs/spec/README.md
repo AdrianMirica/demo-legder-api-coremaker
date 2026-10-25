@@ -1,7 +1,7 @@
 # Ledger API PoC - implementation plan
 
 This folder contains the implementation-ready PRDs derived from
-[`docs/specs/requirements.md`](../specs/requirements.md).
+[`docs/spec/requirements.md`](requirements.md).
 
 The plan is intentionally prescriptive. An implementation agent should not redesign the API,
 database model, concurrency strategy, broker topology, or delivery guarantees. It should implement

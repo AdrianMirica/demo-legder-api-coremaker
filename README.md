@@ -23,7 +23,7 @@ API contract: [`docs/api/openapi.yaml`](docs/api/openapi.yaml)
 
 Event contract: [`docs/api/asyncapi.yaml`](docs/api/asyncapi.yaml)
 
-Original requirements: [`docs/specs/requirements.md`](docs/specs/requirements.md)
+Original requirements: [`docs/spec/requirements.md`](docs/spec/requirements.md)
 
 ## Prerequisites
 

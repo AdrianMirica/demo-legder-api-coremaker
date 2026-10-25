@@ -11,7 +11,7 @@ AI tools were used for this PoC.
 - reviewing each completed PRD for concrete correctness issues.
 
 The committed implementation instructions are under [`docs/spec/`](docs/spec/), and the normalized
-source requirements are in [`docs/specs/requirements.md`](docs/specs/requirements.md).
+source requirements are in [`docs/spec/requirements.md`](docs/spec/requirements.md).
 
 ## How output was checked
 
