@@ -1,5 +1,7 @@
 # PRD-004 - Record balanced transactions
 
+**Status:** DONE
+
 ## Objective
 
 Atomically record immutable double-entry transactions while preserving exact balances under
@@ -114,6 +116,9 @@ Return transaction metadata and entries ordered by `sequence_no ASC`. Return
 - Source is always `API` for this endpoint.
 - Return `201` plus `Location: /api/v1/transactions/{id}`.
 - Validation errors identify `entries[index].field` when applicable.
+- JSON scalar types are strict: description and enum values are strings, account IDs are UUID
+  strings, and amounts are JSON numbers. Scalar coercion, null values, unknown properties, and
+  duplicate properties are rejected before idempotency hashing or ledger writes.
 
 ## Tests
 
@@ -133,12 +138,28 @@ Use MySQL integration tests:
 
 ## Acceptance criteria
 
-- [ ] Transaction, entries, and balances commit all-or-nothing.
-- [ ] Account locks are acquired once in deterministic order.
-- [ ] No rejected transaction leaves a transaction, entry, or balance change.
-- [ ] Recorded transactions and entries are immutable in both application and database.
-- [ ] Concurrency and integrity tests pass against MySQL.
-- [ ] `./mvnw test` passes.
+- [x] Transaction, entries, and balances commit all-or-nothing.
+- [x] Account locks are acquired once in deterministic order.
+- [x] No rejected transaction leaves a transaction, entry, or balance change.
+- [x] Recorded transactions and entries are immutable in both application and database.
+- [x] Concurrency and integrity tests pass against MySQL.
+- [x] `./mvnw test` passes.
+
+## Implementation entry point and verification
+
+`TransactionController` exposes idempotent record and read endpoints.
+`LedgerPostingService.recordApi` delegates to the shared `record` path with source `API`; later
+payment and reversal PRDs can reuse that path without duplicating posting logic.
+`AccountLockRepository` acquires every distinct affected account in one native `SELECT ... ORDER BY
+id FOR UPDATE`. The posting service validates shape, account existence, currency, precision,
+balance, storage range, and overdraft before scheduling immutable transaction and entry inserts and
+managed account updates. `IdempotencyService` performs the single flush and transaction commit.
+
+`LedgerTransactionApiTests` proves the settlement and payout examples, ordered entry snapshots,
+atomic refusal for every specified invalid request, retry without duplicate rows, competing-debit
+serialization, repeated opposite-direction transfers without deadlock, currency integrity, read
+behavior, and database-trigger immutability. Tests run against MySQL 8.4, configured to permit
+Flyway to create the immutability triggers while binary logging is enabled.
 
 ## Stop condition
 

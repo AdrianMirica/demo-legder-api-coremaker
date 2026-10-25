@@ -13,6 +13,8 @@ spring:
     enabled: true
   jackson:
     time-zone: UTC
+    deserialization:
+      fail-on-unknown-properties: true
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: ${RABBITMQ_PORT:5672}

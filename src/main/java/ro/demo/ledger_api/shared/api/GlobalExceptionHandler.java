@@ -32,8 +32,8 @@ public class GlobalExceptionHandler {
 	ProblemDetail handleMalformedRequest(HttpMessageNotReadableException exception) {
 		if (exception.getCause() instanceof DatabindException mappingException
 				&& !mappingException.getPath().isEmpty()) {
-			String field = mappingException.getPath().get(0).getPropertyName();
-			if (field != null) {
+			String field = jsonPath(mappingException);
+			if (!field.isEmpty()) {
 				return problem(HttpStatus.BAD_REQUEST, "Request body does not match the JSON contract",
 						ApiErrorCode.VALIDATION_FAILED,
 						List.of(new ApiViolation(field, "INVALID_VALUE", "Invalid JSON property or value")));
@@ -41,6 +41,22 @@ public class GlobalExceptionHandler {
 		}
 		return problem(HttpStatus.BAD_REQUEST, "Malformed JSON request",
 				ApiErrorCode.VALIDATION_FAILED, List.of());
+	}
+
+	private String jsonPath(DatabindException exception) {
+		StringBuilder path = new StringBuilder();
+		for (tools.jackson.core.JacksonException.Reference reference : exception.getPath()) {
+			if (reference.getPropertyName() != null) {
+				if (!path.isEmpty()) {
+					path.append('.');
+				}
+				path.append(reference.getPropertyName());
+			}
+			else if (reference.getIndex() >= 0) {
+				path.append('[').append(reference.getIndex()).append(']');
+			}
+		}
+		return path.toString();
 	}
 
 	@ExceptionHandler(MethodArgumentTypeMismatchException.class)

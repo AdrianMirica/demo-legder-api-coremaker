@@ -156,6 +156,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Transaction'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
   /api/v1/transactions/{transactionId}/reversal:
@@ -304,6 +306,8 @@ components:
         amount:
           type: number
           exclusiveMinimum: 0
+          maximum: 99999999999999999.99
+          description: Must fit the account currency scale.
     ReverseTransactionRequest:
       type: object
       additionalProperties: false
