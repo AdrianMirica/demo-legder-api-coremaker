@@ -44,6 +44,11 @@ the current PRD exactly, run the stated tests, and stop.
 
 Do not exceed a PRD's budget by polishing. If its acceptance tests pass, move on.
 
+## Implementation status
+
+- PRD-001: **DONE** (including the method-parameter validation review fix).
+- PRD-002: **DONE** (MySQL-backed idempotency, exact-response replay, and concurrency/rollback tests).
+
 ## Parallelism
 
 After PRD-004 is complete, PRD-005, PRD-006, PRD-007, and PRD-008 touch separate feature

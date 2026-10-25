@@ -1,7 +1,6 @@
 package ro.demo.ledger_api.shared.api;
 
 import jakarta.validation.ConstraintViolationException;
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
@@ -23,8 +22,7 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(ApiException.class)
 	ProblemDetail handleApiException(ApiException exception) {
-		return problem(exception.status(), exception.getMessage(), exception.errorCode(),
-				exception.violations());
+		return ApiProblems.from(exception);
 	}
 
 	@ExceptionHandler(HttpMessageNotReadableException.class)
@@ -102,12 +100,6 @@ public class GlobalExceptionHandler {
 
 	private ProblemDetail problem(HttpStatus status, String detail, ApiErrorCode errorCode,
 			List<ApiViolation> violations) {
-		ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
-		problem.setType(URI.create("about:blank"));
-		problem.setProperty("errorCode", errorCode.name());
-		if (!violations.isEmpty()) {
-			problem.setProperty("violations", violations);
-		}
-		return problem;
+		return ApiProblems.create(status, detail, errorCode, violations);
 	}
 }

@@ -1,5 +1,7 @@
 # PRD-001 - Foundation and API-first contracts
 
+**Status:** DONE
+
 ## Objective
 
 Create the smallest production-shaped foundation on which all other PRDs can build. Publish the
@@ -102,11 +104,11 @@ Create focused unit tests:
 
 ## Acceptance criteria
 
-- [ ] Both contracts exist under `docs/api/`.
-- [ ] There is one authoritative currency enum; no feature duplicates currency-scale logic.
-- [ ] Problem responses have content type `application/problem+json`.
-- [ ] No business table or endpoint has been implemented.
-- [ ] `./mvnw test` passes.
+- [x] Both contracts exist under `docs/api/`.
+- [x] There is one authoritative currency enum; no feature duplicates currency-scale logic.
+- [x] Problem responses have content type `application/problem+json`.
+- [x] No business table or endpoint has been implemented.
+- [x] `./mvnw test` passes.
 
 ## Stop condition
 
