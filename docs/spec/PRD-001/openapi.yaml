@@ -287,6 +287,8 @@ components:
           type: string
           minLength: 1
           maxLength: 255
+          pattern: '.*\S.*'
+          description: Must contain at least one non-whitespace character.
         entries:
           type: array
           minItems: 2
@@ -316,6 +318,8 @@ components:
           type: string
           minLength: 1
           maxLength: 255
+          pattern: '.*\S.*'
+          description: Must contain at least one non-whitespace character.
     Transaction:
       type: object
       additionalProperties: false

@@ -22,14 +22,18 @@ import tools.jackson.databind.ObjectMapper;
 @RequestMapping("/api/v1/transactions")
 public class TransactionController {
 	private static final String RECORD_TRANSACTION_OPERATION = "RECORD_TRANSACTION";
+	private static final ReverseTransactionRequest DEFAULT_REVERSAL_REQUEST =
+			new ReverseTransactionRequest(null);
 
 	private final LedgerPostingService ledger;
+	private final ReversalService reversals;
 	private final IdempotencyService idempotency;
 	private final ObjectMapper mapper;
 
-	public TransactionController(LedgerPostingService ledger, IdempotencyService idempotency,
-			ObjectMapper mapper) {
+	public TransactionController(LedgerPostingService ledger, ReversalService reversals,
+			IdempotencyService idempotency, ObjectMapper mapper) {
 		this.ledger = ledger;
+		this.reversals = reversals;
 		this.idempotency = idempotency;
 		this.mapper = mapper;
 	}
@@ -59,5 +63,31 @@ public class TransactionController {
 	@GetMapping("/{transactionId}")
 	public ResponseEntity<TransactionResponse> get(@PathVariable UUID transactionId) {
 		return ResponseEntity.ok(ledger.get(transactionId));
+	}
+
+	@PostMapping("/{transactionId}/reversal")
+	public ResponseEntity<String> reverse(
+			@PathVariable UUID transactionId,
+			@RequestHeader("Idempotency-Key") String idempotencyKey,
+			@Valid @RequestBody(required = false) ReverseTransactionRequest request) {
+		ReverseTransactionRequest normalizedRequest =
+				request == null ? DEFAULT_REVERSAL_REQUEST : request;
+		StoredHttpResponse response = idempotency.execute(
+				"REVERSE_TRANSACTION:" + transactionId,
+				idempotencyKey,
+				normalizedRequest,
+				() -> idempotency.jsonResponse(HttpStatus.CREATED,
+						reversals.reverse(transactionId, normalizedRequest)));
+		ResponseEntity.BodyBuilder result = ResponseEntity.status(response.status())
+				.contentType(MediaType.valueOf(response.contentType()));
+		if (response.status() == HttpStatus.CREATED.value()) {
+			TransactionResponse reversal = mapper.readValue(response.body(), TransactionResponse.class);
+			URI location = ServletUriComponentsBuilder.fromCurrentContextPath()
+					.path("/api/v1/transactions/{transactionId}")
+					.buildAndExpand(reversal.id())
+					.toUri();
+			result.location(location);
+		}
+		return result.body(response.body());
 	}
 }

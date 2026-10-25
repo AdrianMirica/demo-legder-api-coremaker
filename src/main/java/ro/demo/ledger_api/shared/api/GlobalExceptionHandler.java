@@ -123,9 +123,23 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(Exception.class)
 	ProblemDetail handleUnexpectedException(Exception exception) {
+		if (hasConstraint(exception, "uk_reversed_transaction")) {
+			return problem(HttpStatus.CONFLICT, "Transaction has already been reversed",
+					ApiErrorCode.TRANSACTION_ALREADY_REVERSED, List.of());
+		}
 		logger.error("Unexpected request failure", exception);
 		return problem(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred",
 				ApiErrorCode.INTERNAL_ERROR, List.of());
+	}
+
+	private boolean hasConstraint(Throwable exception, String expectedConstraint) {
+		for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
+			if (cause instanceof org.hibernate.exception.ConstraintViolationException violation
+					&& expectedConstraint.equalsIgnoreCase(violation.getConstraintName())) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private ApiViolation toViolation(FieldError error) {

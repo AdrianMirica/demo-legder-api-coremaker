@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import java.sql.SQLException;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -64,6 +65,14 @@ class GlobalExceptionHandlerTests {
 				.andExpect(jsonPath("$.violations[0].field").value("page"));
 	}
 
+	@Test
+	void reversalUniqueConstraintMapsOnlyToAlreadyReversedConflict() throws Exception {
+		mockMvc().perform(post("/test/reversal-constraint"))
+				.andExpect(status().isConflict())
+				.andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+				.andExpect(jsonPath("$.errorCode").value("TRANSACTION_ALREADY_REVERSED"));
+	}
+
 	private MockMvc mockMvc() {
 		return MockMvcBuilders.standaloneSetup(new ErrorController())
 				.setControllerAdvice(new GlobalExceptionHandler())
@@ -87,6 +96,15 @@ class GlobalExceptionHandlerTests {
 
 		@GetMapping("/test/page")
 		void page(@Min(1) @RequestParam int page) {
+		}
+
+		@PostMapping("/test/reversal-constraint")
+		void reversalConstraint() {
+			throw new org.hibernate.exception.ConstraintViolationException(
+					"Duplicate reversal",
+					new SQLException("Duplicate entry", "23000", 1062),
+					"insert into ledger_transactions",
+					"uk_reversed_transaction");
 		}
 	}
 

@@ -1,5 +1,7 @@
 # PRD-005 - Reverse transactions
 
+**Status:** DONE
+
 ## Objective
 
 Record exactly one immutable reversal for an original transaction, using the same ledger validation,
@@ -43,7 +45,16 @@ The unique constraint on `reversed_transaction_id` is the final race-condition d
 specific duplicate-key violation to `TRANSACTION_ALREADY_REVERSED`; do not broadly convert database
 errors.
 
+The global exception mapping recognizes only Hibernate constraint violations whose constraint name
+is exactly `uk_reversed_transaction`. Other integrity failures remain unexpected server errors and
+are logged rather than being mislabeled as reversal conflicts.
+
 The reversal can fail with `OVERDRAFT_LIMIT_EXCEEDED`. In that case, record nothing.
+
+An absent request body and `{}` both select the default description and hash identically. Explicit
+JSON `null` is not an absent body and is rejected with `400 VALIDATION_FAILED`. Supplied
+descriptions must contain at least one non-whitespace character and be at most 255 characters,
+matching the OpenAPI pattern.
 
 ## Tests
 
@@ -59,11 +70,25 @@ The reversal can fail with `OVERDRAFT_LIMIT_EXCEEDED`. In that case, record noth
 
 ## Acceptance criteria
 
-- [ ] Exactly one reversal can exist for an original transaction.
-- [ ] Reversal reuses the normal posting path.
-- [ ] Original transaction and entries are never modified.
-- [ ] Concurrent reversal behavior is proved against MySQL.
-- [ ] `./mvnw test` passes.
+- [x] Exactly one reversal can exist for an original transaction.
+- [x] Reversal reuses the normal posting path.
+- [x] Original transaction and entries are never modified.
+- [x] Concurrent reversal behavior is proved against MySQL.
+- [x] `./mvnw test` passes.
+
+## Implementation entry point and verification
+
+`TransactionController` normalizes an absent reversal body and `{}` to the same request before
+idempotency hashing, scopes keys as `REVERSE_TRANSACTION:{transactionId}`, and returns the reversal
+resource location. `ReversalService` locks the original transaction, performs a current locked read
+for an existing reversal, flips immutable entries in their original order, and invokes
+`LedgerPostingService.record` with source `REVERSAL` and the original transaction link.
+
+`ReversalApiTests` proves flipped entries and restored balances, byte-identical original reads,
+same-key replay, second-reversal rejection, reversal-of-reversal rejection, default descriptions,
+atomic overdraft refusal, strict request JSON, and two simultaneous different-key requests creating
+exactly one reversal. `GlobalExceptionHandlerTests` proves that only the named reversal uniqueness
+constraint is translated to `TRANSACTION_ALREADY_REVERSED`.
 
 ## Stop condition
 

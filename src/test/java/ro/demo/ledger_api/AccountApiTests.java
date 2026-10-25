@@ -35,7 +35,12 @@ class AccountApiTests {
 
 	@BeforeEach
 	void resetAccountsAndKeys() {
-		jdbc.update("DELETE FROM accounts WHERE settlement_account = FALSE");
+		jdbc.update("""
+				DELETE account
+				FROM accounts account
+				LEFT JOIN ledger_entries entry ON entry.account_id = account.id
+				WHERE account.settlement_account = FALSE AND entry.id IS NULL
+				""");
 		jdbc.update("DELETE FROM idempotency_records");
 	}
 
@@ -117,6 +122,7 @@ class AccountApiTests {
 
 	@Test
 	void rejectsNegativeAndExcessScaleOverdrafts() throws Exception {
+		int accountsBefore = publicAccountCount();
 		mockMvc.perform(post("/api/v1/accounts")
 						.header("Idempotency-Key", "negative-limit")
 						.contentType(MediaType.APPLICATION_JSON)
@@ -132,9 +138,7 @@ class AccountApiTests {
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.errorCode").value("INVALID_AMOUNT_SCALE"));
 
-		org.junit.jupiter.api.Assertions.assertEquals(0,
-				jdbc.queryForObject("SELECT COUNT(*) FROM accounts WHERE settlement_account = FALSE",
-						Integer.class));
+		assertEquals(accountsBefore, publicAccountCount());
 	}
 
 	@Test
@@ -191,6 +195,7 @@ class AccountApiTests {
 	@ParameterizedTest
 	@ValueSource(strings = {"EUR", "USD", "JPY"})
 	void rejectsOutOfRangeOverdraftAndReplaysRejectionWithoutCreatingAccount(String currency) throws Exception {
+		int accountsBefore = publicAccountCount();
 		String payload = "{\"currency\":\"" + currency + "\",\"overdraftLimit\":100000000000000000}";
 		String first = mockMvc.perform(post("/api/v1/accounts")
 						.header("Idempotency-Key", "overflow")
@@ -208,14 +213,14 @@ class AccountApiTests {
 						.content(payload))
 				.andExpect(status().isBadRequest())
 				.andExpect(content().string(first));
-		assertEquals(0, jdbc.queryForObject(
-				"SELECT COUNT(*) FROM accounts WHERE settlement_account = FALSE", Integer.class));
+		assertEquals(accountsBefore, publicAccountCount());
 		assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM idempotency_records", Integer.class));
 	}
 
 	@ParameterizedTest
 	@ValueSource(strings = {"null", "\"\"", "\"12.50\"", "true", "false", "{}", "[]"})
 	void rejectsExplicitNullAndNonNumericOverdraftTokens(String token) throws Exception {
+		int accountsBefore = publicAccountCount();
 		mockMvc.perform(post("/api/v1/accounts")
 						.header("Idempotency-Key", "invalid-token")
 						.contentType(MediaType.APPLICATION_JSON)
@@ -224,8 +229,7 @@ class AccountApiTests {
 				.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
 				.andExpect(jsonPath("$.errorCode").value("VALIDATION_FAILED"))
 				.andExpect(jsonPath("$.violations[0].field").value("overdraftLimit"));
-		assertEquals(0, jdbc.queryForObject(
-				"SELECT COUNT(*) FROM accounts WHERE settlement_account = FALSE", Integer.class));
+		assertEquals(accountsBefore, publicAccountCount());
 		assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM idempotency_records", Integer.class));
 
 		mockMvc.perform(post("/api/v1/accounts")
@@ -240,6 +244,7 @@ class AccountApiTests {
 	@ValueSource(strings = {"\"overdraftLimt\":500", "\"settlementAccount\":true", "\"settlementAccount\":false",
 			"\"balance\":100", "\"id\":\"11111111-1111-1111-1111-111111111111\""})
 	void rejectsUnknownAndForbiddenPropertiesBeforeHashing(String property) throws Exception {
+		int accountsBefore = publicAccountCount();
 		String field = property.substring(1, property.indexOf('"', 1));
 		mockMvc.perform(post("/api/v1/accounts")
 						.header("Idempotency-Key", "unknown-field")
@@ -248,8 +253,7 @@ class AccountApiTests {
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.errorCode").value("VALIDATION_FAILED"))
 				.andExpect(jsonPath("$.violations[0].field").value(field));
-		assertEquals(0, jdbc.queryForObject(
-				"SELECT COUNT(*) FROM accounts WHERE settlement_account = FALSE", Integer.class));
+		assertEquals(accountsBefore, publicAccountCount());
 		assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM idempotency_records", Integer.class));
 	}
 
@@ -281,5 +285,10 @@ class AccountApiTests {
 						.content("{\"currency\":\"" + currency + "\"}"))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.errorCode").value(expectedCode));
+	}
+
+	private int publicAccountCount() {
+		return jdbc.queryForObject(
+				"SELECT COUNT(*) FROM accounts WHERE settlement_account = FALSE", Integer.class);
 	}
 }

@@ -51,6 +51,8 @@ Do not exceed a PRD's budget by polishing. If its acceptance tests pass, move on
 - PRD-003: **DONE** (account API, settlement seeds, currency validation, and MySQL integration tests).
 - PRD-004: **DONE** (atomic double-entry posting, deterministic locking, immutable ledger, and
   MySQL concurrency/integrity tests).
+- PRD-005: **DONE** (single immutable reversal, idempotent retry, overdraft enforcement, and
+  concurrent-reversal proof on MySQL).
 
 ## Parallelism
 
