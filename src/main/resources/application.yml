@@ -39,6 +39,10 @@ spring:
 server:
   shutdown: graceful
 
+logging:
+  pattern:
+    level: "%5p [correlationId=%X{correlationId:-} eventId=%X{eventId:-} paymentId=%X{paymentId:-}]"
+
 management:
   endpoints:
     web:

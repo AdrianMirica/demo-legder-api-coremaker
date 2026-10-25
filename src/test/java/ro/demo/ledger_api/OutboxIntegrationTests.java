@@ -129,6 +129,10 @@ class OutboxIntegrationTests {
 		assertNotNull(event);
 		assertEquals(stored.get("eventId").asString(), event.getMessageProperties().getMessageId());
 		assertEquals(correlationId, event.getMessageProperties().getCorrelationId());
+		assertEquals(correlationId, event.getMessageProperties().getHeader("correlationId"));
+		assertEquals(idempotencyKey, event.getMessageProperties().getHeader("causationId"));
+		assertEquals(stored.get("eventId").asString(),
+				event.getMessageProperties().getHeader("eventId"));
 		assertEquals(stored, mapper.readTree(event.getBody()));
 		assertNotNull(publishedAt(transactionId));
 	}
@@ -266,7 +270,7 @@ class OutboxIntegrationTests {
 				entry(merchant, "CREDIT", "5.00"))).get("id").asString();
 		String eventId = storedEvent(transactionId).get("eventId").asString();
 		OutboxPublisher second = new OutboxPublisher(outboxRepository, rabbit, transactionManager,
-				Duration.ofSeconds(5));
+				Duration.ofSeconds(5), mapper);
 		var executor = Executors.newFixedThreadPool(2);
 		CountDownLatch ready = new CountDownLatch(2);
 		CountDownLatch start = new CountDownLatch(1);

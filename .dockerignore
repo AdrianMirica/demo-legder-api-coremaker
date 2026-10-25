@@ -1,0 +1,8 @@
+.git
+.idea
+.vscode
+.DS_Store
+target
+*.log
+*.zip
+docs/ledger-api

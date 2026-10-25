@@ -1,0 +1,82 @@
+services:
+  mysql:
+    image: mysql:8.4
+    command: --log-bin-trust-function-creators=1
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-ledger}
+      MYSQL_USER: ${MYSQL_USER:-ledger}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-ledger-local-password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root-local-password}
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+  # RabbitMQ/Erlang requires .erlang.cookie to be owned by the rabbitmq user and readable only
+  # by that user. Some Docker Desktop implementations copy the cookie from the 4.1 image into a
+  # fresh named volume as root:root (0400), which makes RabbitMQ fail at startup with EACCES.
+  # This one-shot init service writes the configured local cookie and fixes the volume ownership
+  # before the broker starts. "$$" defers variable expansion to the container shell.
+  rabbitmq-init:
+    image: rabbitmq:4.1-management
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        umask 077;
+        printf '%s' "$$RABBITMQ_ERLANG_COOKIE" > /var/lib/rabbitmq/.erlang.cookie;
+        chown -R 999:999 /var/lib/rabbitmq;
+        chmod 0400 /var/lib/rabbitmq/.erlang.cookie
+    environment:
+      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE:-ledger-local-erlang-cookie}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    restart: "no"
+
+  rabbitmq:
+    image: rabbitmq:4.1-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-ledger}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-rabbit-local-password}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-/}
+      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE:-ledger-local-erlang-cookie}
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+    ports:
+      - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    depends_on:
+      rabbitmq-init:
+        condition: service_completed_successfully
+
+  ledger-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-ledger}
+      DB_USERNAME: ${MYSQL_USER:-ledger}
+      DB_PASSWORD: ${MYSQL_PASSWORD:-ledger-local-password}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: ${RABBITMQ_USER:-ledger}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-rabbit-local-password}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8080"
+    restart: unless-stopped
+
+volumes:
+  mysql-data:
+  rabbitmq-data:

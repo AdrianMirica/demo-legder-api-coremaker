@@ -16,6 +16,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 @Component
 public class OutboxPublisher {
@@ -25,16 +27,19 @@ public class OutboxPublisher {
 	private final RabbitTemplate rabbit;
 	private final TransactionTemplate transaction;
 	private final Duration confirmTimeout;
+	private final ObjectMapper mapper;
 
 	public OutboxPublisher(OutboxEventRepository repository, RabbitTemplate rabbitTemplate,
 			PlatformTransactionManager transactionManager,
-			@Value("${ledger.outbox.confirm-timeout:5s}") Duration confirmTimeout) {
+			@Value("${ledger.outbox.confirm-timeout:5s}") Duration confirmTimeout,
+			ObjectMapper mapper) {
 		this.repository = repository;
 		this.rabbit = rabbitTemplate;
 		this.rabbit.setMandatory(true);
 		this.transaction = new TransactionTemplate(transactionManager);
 		this.transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
 		this.confirmTimeout = confirmTimeout;
+		this.mapper = mapper;
 	}
 
 	@Scheduled(fixedDelayString = "${ledger.outbox.poll-delay:250ms}",
@@ -56,7 +61,14 @@ public class OutboxPublisher {
 			properties.setDeliveryMode(MessageDeliveryMode.PERSISTENT);
 			properties.setMessageId(event.id());
 			properties.setCorrelationId(event.correlationId());
+			properties.setHeader("correlationId", event.correlationId());
 			properties.setHeader("eventType", event.eventType());
+			JsonNode payload = mapper.readTree(event.payload());
+			properties.setHeader("eventId", event.id());
+			if (!payload.path("causationId").isNull()
+					&& !payload.path("causationId").isMissingNode()) {
+				properties.setHeader("causationId", payload.path("causationId").asString());
+			}
 			CorrelationData correlation = new CorrelationData(event.id());
 			rabbit.send(OutboxMessagingConfiguration.TRANSACTION_EXCHANGE, event.routingKey(),
 					new Message(event.payload().getBytes(StandardCharsets.UTF_8), properties), correlation);
@@ -70,6 +82,10 @@ public class OutboxPublisher {
 						+ correlation.getReturned().getReplyText());
 			}
 			repository.markPublished(event.id());
+			logger.atInfo().addKeyValue("eventId", event.id())
+					.addKeyValue("aggregateId", event.aggregateId())
+					.addKeyValue("routingKey", event.routingKey())
+					.log("Outbox event published");
 			return true;
 		}
 		catch (Exception failure) {

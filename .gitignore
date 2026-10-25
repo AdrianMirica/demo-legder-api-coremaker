@@ -25,3 +25,8 @@ replay_pid*
 
 # Build directory
 target/
+
+# Local tooling and operating system files
+.DS_Store
+.idea/
+.vscode/

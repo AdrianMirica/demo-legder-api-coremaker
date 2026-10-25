@@ -12,6 +12,10 @@ import java.util.Objects;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ro.demo.ledger_api.account.AccountEntity;
 import ro.demo.ledger_api.messaging.outbox.OutboxService;
 import ro.demo.ledger_api.shared.api.ApiErrorCode;
@@ -22,6 +26,7 @@ import ro.demo.ledger_api.shared.domain.EntryDirection;
 
 @Service
 public class LedgerPostingService {
+	private static final Logger logger = LoggerFactory.getLogger(LedgerPostingService.class);
 	private static final BigDecimal MAX_STORED_AMOUNT = new BigDecimal("99999999999999999.99");
 
 	private final AccountLockRepository accountLocks;
@@ -102,6 +107,17 @@ public class LedgerPostingService {
 		transactions.flush();
 		entries.flush();
 		outbox.enqueue(response, currency);
+		if (TransactionSynchronizationManager.isSynchronizationActive()) {
+			TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+				@Override
+				public void afterCommit() {
+					logger.atInfo().addKeyValue("transactionId", response.id())
+							.addKeyValue("source", response.source())
+							.addKeyValue("currency", currency)
+							.log("Ledger transaction committed");
+				}
+			});
+		}
 		return response;
 	}
 

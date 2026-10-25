@@ -58,6 +58,8 @@ Do not exceed a PRD's budget by polishing. If its acceptance tests pass, move on
   sample publisher, and real-infrastructure integration tests).
 - PRD-008: **DONE** (transactional outbox, stable at-least-once events, publisher confirms,
   multi-instance locking, and RabbitMQ outage recovery).
+- PRD-009: **DONE** (correlation observability, Docker delivery, verify-phase system proof, and
+  complete operating/design documentation).
 
 ## Parallelism
 

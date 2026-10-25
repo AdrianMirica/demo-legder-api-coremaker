@@ -17,6 +17,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import ro.demo.ledger_api.idempotency.IdempotencyService;
 import ro.demo.ledger_api.idempotency.StoredHttpResponse;
 import ro.demo.ledger_api.messaging.outbox.OutboxContext;
+import ro.demo.ledger_api.shared.observability.CorrelationContext;
 import tools.jackson.databind.ObjectMapper;
 
 @RestController
@@ -31,22 +32,24 @@ public class TransactionController {
 	private final IdempotencyService idempotency;
 	private final ObjectMapper mapper;
 	private final OutboxContext outboxContext;
+	private final CorrelationContext correlations;
 
 	public TransactionController(LedgerPostingService ledger, ReversalService reversals,
-			IdempotencyService idempotency, ObjectMapper mapper, OutboxContext outboxContext) {
+			IdempotencyService idempotency, ObjectMapper mapper, OutboxContext outboxContext,
+			CorrelationContext correlations) {
 		this.ledger = ledger;
 		this.reversals = reversals;
 		this.idempotency = idempotency;
 		this.mapper = mapper;
 		this.outboxContext = outboxContext;
+		this.correlations = correlations;
 	}
 
 	@PostMapping
 	public ResponseEntity<String> record(
 			@RequestHeader("Idempotency-Key") String idempotencyKey,
-			@RequestHeader(value = "X-Correlation-Id", required = false) String correlationId,
 			@Valid @RequestBody RecordTransactionRequest request) {
-		String correlation = correlationId == null ? UUID.randomUUID().toString() : correlationId;
+		String correlation = correlations.currentId();
 		StoredHttpResponse response = outboxContext.with(correlation, idempotencyKey,
 				() -> idempotency.execute(
 						RECORD_TRANSACTION_OPERATION,
@@ -75,11 +78,10 @@ public class TransactionController {
 	public ResponseEntity<String> reverse(
 			@PathVariable UUID transactionId,
 			@RequestHeader("Idempotency-Key") String idempotencyKey,
-			@RequestHeader(value = "X-Correlation-Id", required = false) String correlationId,
 			@Valid @RequestBody(required = false) ReverseTransactionRequest request) {
 		ReverseTransactionRequest normalizedRequest =
 				request == null ? DEFAULT_REVERSAL_REQUEST : request;
-		String correlation = correlationId == null ? UUID.randomUUID().toString() : correlationId;
+		String correlation = correlations.currentId();
 		StoredHttpResponse response = outboxContext.with(correlation, idempotencyKey,
 				() -> idempotency.execute(
 						"REVERSE_TRANSACTION:" + transactionId,

@@ -1,5 +1,7 @@
 # PRD-009 - System proof, observability, Docker, and documentation
 
+**Status:** DONE
+
 ## Objective
 
 Turn the implemented features into a reproducible PoC: one command builds, starts, and tests it;
@@ -153,13 +155,26 @@ Create `AI_USAGE.md` with:
 
 ## Acceptance criteria
 
-- [ ] All functional, non-functional, and nice-to-have requirements are implemented.
-- [ ] `./run-poc.sh` succeeds from a clean checkout.
-- [ ] `./mvnw verify` passes against real MySQL and RabbitMQ.
-- [ ] Stack remains healthy after tests.
-- [ ] README documents decisions, samples, guarantees, limitations, and Improvements.
-- [ ] OpenAPI and AsyncAPI match runtime behavior.
-- [ ] No secret, generated archive, build output, or database data is committed.
+- [x] All functional, non-functional, and nice-to-have requirements are implemented.
+- [x] `./run-poc.sh` succeeds from a clean checkout.
+- [x] `./mvnw verify` passes against real MySQL and RabbitMQ.
+- [x] Stack remains healthy after tests.
+- [x] README documents decisions, samples, guarantees, limitations, and Improvements.
+- [x] OpenAPI and AsyncAPI match runtime behavior.
+- [x] No secret, generated archive, build output, or database data is committed.
+
+## Verification evidence
+
+- `./mvnw clean verify`: 103 Surefire tests and 4 `LedgerGuaranteesIT` Failsafe tests passed.
+- `./run-poc.sh`: Docker image build, Compose health, and the complete Maven verification passed;
+  the script left the stack healthy and printed the mapped API URL.
+- `docker compose up --scale ledger-api=2`: two stateless application replicas reached healthy
+  state on separate dynamic host ports.
+- A manual smoke flow opened an EUR account through REST, published `payment-settled` with
+  `scripts/send-payment-settled.sh`, and read an exact `1.50` balance through REST.
+- RabbitMQ management and MySQL remained healthy after all tests. The RabbitMQ named volume uses a
+  one-shot initializer to create the Erlang cookie with the official image user ownership on Docker
+  Desktop implementations that otherwise copy it as root.
 
 ## Stop condition
 

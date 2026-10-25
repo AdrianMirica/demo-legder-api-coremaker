@@ -39,12 +39,33 @@ components:
       name: payment-settled
       title: Payment settled
       contentType: application/json
+      headers:
+        type: object
+        properties:
+          correlationId:
+            type: string
+            maxLength: 128
+            description: Optional upstream correlation ID; eventId is used when absent.
       payload:
         $ref: '#/components/schemas/PaymentSettledPayload'
     TransactionRecorded:
       name: transaction-recorded
       title: Ledger transaction recorded
       contentType: application/json
+      headers:
+        type: object
+        required: [correlationId, eventId, eventType]
+        properties:
+          correlationId:
+            type: string
+            maxLength: 128
+          causationId:
+            type: string
+          eventId:
+            type: string
+            format: uuid
+          eventType:
+            const: transaction-recorded
       payload:
         $ref: '#/components/schemas/TransactionRecordedPayload'
   schemas:
