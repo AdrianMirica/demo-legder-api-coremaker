@@ -11,8 +11,8 @@
 	<groupId>ro.demo</groupId>
 	<artifactId>ledger-api</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name/>
-	<description/>
+	<name>Ledger API</name>
+	<description>Double-entry ledger API built with Spring Boot</description>
 	<url/>
 	<licenses>
 		<license/>

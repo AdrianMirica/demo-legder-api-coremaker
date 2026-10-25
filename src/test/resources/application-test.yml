@@ -1,0 +1,10 @@
+logging:
+  level:
+    root: WARN
+    ro.demo.ledger_api: INFO
+
+spring:
+  rabbitmq:
+    connection-timeout: 5s
+  lifecycle:
+    timeout-per-shutdown-phase: 5s
