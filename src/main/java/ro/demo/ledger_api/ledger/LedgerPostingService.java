@@ -111,7 +111,7 @@ public class LedgerPostingService {
 			throw validation("request", "REQUIRED", "Request body is required");
 		}
 		if (request.description() == null || request.description().isBlank()
-				|| request.description().length() > 255) {
+				|| request.description().codePointCount(0, request.description().length()) > 255) {
 			throw validation("description", "SIZE", "Description must contain between 1 and 255 characters");
 		}
 		if (request.entries() == null || request.entries().size() < 2 || request.entries().size() > 100) {

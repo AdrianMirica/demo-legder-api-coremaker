@@ -65,12 +65,15 @@ components:
           type: string
           minLength: 1
           maxLength: 128
+          description: Case-sensitive logical payment identifier; used for deduplication independently of eventId.
         merchantAccountId:
           type: string
           format: uuid
         amount:
           type: number
           exclusiveMinimum: 0
+          maximum: 99999999999999999.99
+          description: Exact positive decimal with at most the currency's allowed decimal places.
         currency:
           type: string
           enum: [EUR, USD, JPY]
@@ -153,4 +156,3 @@ components:
           type: number
         balanceAfter:
           type: number
-

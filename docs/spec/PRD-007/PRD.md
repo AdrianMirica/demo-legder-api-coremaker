@@ -1,5 +1,7 @@
 # PRD-007 - Consume settled-payment messages
 
+**Status:** DONE
+
 ## Objective
 
 Consume `payment-settled` messages from RabbitMQ, record each logical payment exactly once, and send
@@ -41,6 +43,8 @@ CREATE TABLE processed_payments (
 ```
 
 The row and ledger transaction must commit in the same database transaction.
+The implementation uses `utf8mb4_0900_bin` on `payment_id`, matching REST idempotency's
+case-sensitive, NO PAD identifier semantics.
 
 ## Implementation
 
@@ -71,6 +75,9 @@ PaymentPayloadHasher
 Inside one transaction:
 
 1. Validate event ID, payment ID, merchant account UUID, positive amount, and currency.
+   Payment IDs are limited to 128 Unicode code points, matching AsyncAPI and MySQL `VARCHAR(128)`,
+   not 128 UTF-16 code units. The generated ledger description uses the same character-count
+   convention against its 255-character limit.
 2. Compute SHA-256 over payment ID, merchant account ID, amount normalized to the currency scale,
    and currency.
    Deliberately exclude `eventId`.
@@ -90,6 +97,12 @@ Inside one transaction:
 8. Update `processed_payments.transaction_id`.
 9. Commit reservation, transaction, entries, and balances together.
 
+`PaymentProcessingService` owns a `REQUIRES_NEW` transaction. The listener retry advice wraps the
+entire call, so every retry gets a new transaction and persistence context. Reservation duplicates
+use a current `FOR SHARE` read to avoid shared-to-exclusive lock upgrades. JPA flush precedes the
+JDBC update linking the processed payment to the new transaction; acknowledgment follows commit.
+Permanent failures roll back the reservation as well as ledger changes.
+
 Unknown account, wrong currency, malformed UUID, invalid amount scale, and conflicting redelivery are
 permanent failures and go to the DLQ. A database or broker connectivity failure is transient.
 
@@ -105,6 +118,27 @@ Create `scripts/send-payment-settled.sh`:
 - prints the exact payload and event ID.
 
 Exit nonzero with a usage message when arguments are missing.
+
+### Running the sample publisher
+
+```bash
+./scripts/send-payment-settled.sh payment-42 MERCHANT_ACCOUNT_UUID 125.50 EUR
+```
+
+By default this executes `rabbitmqadmin` v2 in Compose service `rabbitmq`. Before Compose is
+implemented in PRD-009, it can target an existing management container:
+
+```bash
+RABBITMQ_CONTAINER=CONTAINER_ID ./scripts/send-payment-settled.sh payment-42 MERCHANT_ACCOUNT_UUID 125.50 EUR
+```
+
+The broker command reads `RABBITMQ_DEFAULT_USER`, `RABBITMQ_DEFAULT_PASS`, and optionally
+`RABBITMQ_DEFAULT_VHOST` from the container environment (local image defaults are guest/guest and
+`/`). The script requires no host-side broker tools or JSON package. It JSON-escapes payment IDs,
+generates a UUID from OS entropy, prints the exact payload, and propagates publisher failures.
+It verifies the `rabbitmqadmin` v2 routing result, returning nonzero when the exchange accepts a
+message but no queue receives it, even if the CLI itself exits zero. CLI diagnostics are preserved;
+an unrecognized success response fails explicitly instead of assuming successful routing.
 
 ## Tests
 
@@ -122,14 +156,23 @@ Use MySQL and RabbitMQ Testcontainers:
 Use Awaitility only if it already exists transitively; otherwise use a small bounded polling helper
 in test code rather than adding a dependency.
 
+`PaymentSettledIntegrationTests` uses the existing transitive Awaitility dependency. Tests send
+actual persistent AMQP messages and inspect the original DLQ bodies and `x-death` trace headers.
+Broker acknowledgment observation checks committed rows using a separate database connection.
+Transient failures injected after JPA flush prove rollback before retry and the exact three-attempt
+limit; permanent failures are verified to run once. The publisher script is exercised against
+the real RabbitMQ management container, including a payment ID containing quotes and backslashes.
+Regression tests cover supplementary Unicode payment IDs at and above the character limit, and a
+sample publish to an existing exchange whose payment binding has been removed.
+
 ## Acceptance criteria
 
-- [ ] Deduplication key is `paymentId`, not `eventId`.
-- [ ] Poison messages are visible in the DLQ and do not block later messages.
-- [ ] Database commit occurs before broker acknowledgment.
-- [ ] A sample event can be sent without installing broker tools locally.
-- [ ] Integration tests use real RabbitMQ and MySQL.
-- [ ] `./mvnw test` passes.
+- [x] Deduplication key is `paymentId`, not `eventId`.
+- [x] Poison messages are visible in the DLQ and do not block later messages.
+- [x] Database commit occurs before broker acknowledgment.
+- [x] A sample event can be sent without installing broker tools locally.
+- [x] Integration tests use real RabbitMQ and MySQL.
+- [x] `./mvnw test` passes.
 
 ## Stop condition
 
