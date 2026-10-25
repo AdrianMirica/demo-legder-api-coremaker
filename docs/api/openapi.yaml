@@ -53,6 +53,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Account'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
   /api/v1/accounts/{accountId}/entries:
@@ -251,7 +253,9 @@ components:
         overdraftLimit:
           type: number
           minimum: 0
+          maximum: 99999999999999999.99
           default: 0
+          description: Omit for zero. Explicit nulls and numeric strings are invalid. Must fit the currency scale.
           examples: [0.00, 500.00]
     Account:
       type: object

@@ -48,6 +48,7 @@ Do not exceed a PRD's budget by polishing. If its acceptance tests pass, move on
 
 - PRD-001: **DONE** (including the method-parameter validation review fix).
 - PRD-002: **DONE** (MySQL-backed idempotency, exact-response replay, and concurrency/rollback tests).
+- PRD-003: **DONE** (account API, settlement seeds, currency validation, and MySQL integration tests).
 
 ## Parallelism
 

@@ -15,6 +15,9 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import tools.jackson.databind.DatabindException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -27,8 +30,32 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(HttpMessageNotReadableException.class)
 	ProblemDetail handleMalformedRequest(HttpMessageNotReadableException exception) {
+		if (exception.getCause() instanceof DatabindException mappingException
+				&& !mappingException.getPath().isEmpty()) {
+			String field = mappingException.getPath().get(0).getPropertyName();
+			if (field != null) {
+				return problem(HttpStatus.BAD_REQUEST, "Request body does not match the JSON contract",
+						ApiErrorCode.VALIDATION_FAILED,
+						List.of(new ApiViolation(field, "INVALID_VALUE", "Invalid JSON property or value")));
+			}
+		}
 		return problem(HttpStatus.BAD_REQUEST, "Malformed JSON request",
 				ApiErrorCode.VALIDATION_FAILED, List.of());
+	}
+
+	@ExceptionHandler(MethodArgumentTypeMismatchException.class)
+	ProblemDetail handleArgumentTypeMismatch(MethodArgumentTypeMismatchException exception) {
+		return problem(HttpStatus.BAD_REQUEST, "Request parameter has an invalid format",
+				ApiErrorCode.VALIDATION_FAILED,
+				List.of(new ApiViolation(exception.getName(), "TYPE_MISMATCH", "Invalid parameter format")));
+	}
+
+	@ExceptionHandler(MissingRequestHeaderException.class)
+	ProblemDetail handleMissingHeader(MissingRequestHeaderException exception) {
+		List<ApiViolation> violations = List.of(new ApiViolation(exception.getHeaderName(),
+				"REQUIRED", "Required request header is missing"));
+		return problem(HttpStatus.BAD_REQUEST, "Required request header is missing",
+				ApiErrorCode.VALIDATION_FAILED, violations);
 	}
 
 	@ExceptionHandler(BindException.class)
